@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Control de Auto ESP32</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(to right, #1e3c72, #2a5298);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+
+    h1 {
+      font-size: 3em;
+      margin-bottom: 10px;
+    }
+
+    p {
+      font-size: 1.5em;
+      margin-bottom: 30px;
+    }
+
+    #status {
+      font-size: 1.2em;
+      padding: 10px 20px;
+      border-radius: 8px;
+      background-color: #fff;
+      color: #333;
+      font-weight: bold;
+      box-shadow: 0 0 10px rgba(0,0,0,0.3);
+    }
+
+    .keys {
+      display: grid;
+      grid-template-columns: repeat(3, 80px);
+      grid-template-rows: repeat(2, 80px);
+      gap: 10px;
+      margin-top: 40px;
+    }
+
+    .key {
+      background-color: #ffffff33;
+      border: 2px solid #ffffff88;
+      border-radius: 12px;
+      font-size: 2em;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      transition: background 0.2s, transform 0.2s;
+    }
+
+    .key:active, .key.pressed {
+      background-color: #ffffff88;
+      transform: scale(0.95);
+    }
+  </style>
+</head>
+<body>
+  <h1>Control de Auto ESP32</h1>
+  <p>Usá las teclas W, A, S y D para mover el auto.</p>
+  <div id="status">Conectando...</div>
+
+  <div class="keys">
+    <div></div>
+    <div class="key" id="key-w">W</div>
+    <div></div>
+    <div class="key" id="key-a">A</div>
+    <div class="key" id="key-s">S</div>
+    <div class="key" id="key-d">D</div>
+  </div>
+
+  <script>
+    const status = document.getElementById('status');
+   const socket = new WebSocket('ws://192.168.0.110:81'); // Cambia la IP según tu configuración
+
+    socket.onopen = () => {
+      status.textContent = '✅ Conectado';
+      status.style.backgroundColor = '#b6fcb6';
+    };
+
+    socket.onclose = () => {
+      status.textContent = '❌ Desconectado';
+      status.style.backgroundColor = '#fcb6b6';
+    };
+
+    const keyMap = {
+      w: document.getElementById('key-w'),
+      a: document.getElementById('key-a'),
+      s: document.getElementById('key-s'),
+      d: document.getElementById('key-d')
+    };
+
+    document.addEventListener('keydown', (e) => {
+      const key = e.key.toLowerCase();
+      if (['w', 'a', 's', 'd'].includes(key)) {
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(key);
+        }
+        keyMap[key].classList.add('pressed');
+      }
+    });
+
+    document.addEventListener('keyup', (e) => {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send('stop');
+      }
+      for (let k in keyMap) {
+        keyMap[k].classList.remove('pressed');
+      }
+    });
+  </script>
+</body>
+</html>
