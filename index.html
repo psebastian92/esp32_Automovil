@@ -62,12 +62,30 @@
       background-color: #ffffff88;
       transform: scale(0.95);
     }
+
+    #car {
+      margin-top: 30px;
+      transition: transform 0.2s ease;
+    }
   </style>
 </head>
 <body>
   <h1>Control de Auto ESP32</h1>
   <p>Usá las teclas W, A, S y D para mover el auto.</p>
   <div id="status">Conectando...</div>
+
+<!-- Auto visual con SVG -->
+<svg id="car" width="200" height="120">
+  <!-- Ruedas (cerca y simétricas) -->
+  <rect x="40" y="20" width="20" height="20" fill="black" rx="4"/>
+  <rect x="140" y="20" width="20" height="20" fill="black" rx="4"/>
+  <rect x="40" y="80" width="20" height="20" fill="black" rx="4"/>
+  <rect x="140" y="80" width="20" height="20" fill="black" rx="4"/>
+
+  <!-- Cuerpo del auto rotado 90° -->
+  <rect x="40" y="30" width="120" height="60" fill="red" rx="10" transform="rotate(90 100 60)"/>
+</svg>
+
 
   <div class="keys">
     <div></div>
@@ -80,7 +98,7 @@
 
   <script>
     const status = document.getElementById('status');
-   const socket = new WebSocket('ws://192.168.0.110:81'); // Cambia la IP según tu configuración
+    const socket = new WebSocket('ws://192.168.0.110:81'); // Cambia IP si es necesario
 
     socket.onopen = () => {
       status.textContent = '✅ Conectado';
@@ -99,6 +117,8 @@
       d: document.getElementById('key-d')
     };
 
+    const car = document.getElementById('car');
+
     document.addEventListener('keydown', (e) => {
       const key = e.key.toLowerCase();
       if (['w', 'a', 's', 'd'].includes(key)) {
@@ -106,6 +126,22 @@
           socket.send(key);
         }
         keyMap[key].classList.add('pressed');
+
+        // Animación visual del auto
+        switch (key) {
+          case 'w':
+            car.style.transform = 'translateY(-10px)';
+            break;
+          case 's':
+            car.style.transform = 'translateY(10px)';
+            break;
+          case 'a':
+            car.style.transform = 'rotate(-10deg)';
+            break;
+          case 'd':
+            car.style.transform = 'rotate(10deg)';
+            break;
+        }
       }
     });
 
@@ -116,6 +152,9 @@
       for (let k in keyMap) {
         keyMap[k].classList.remove('pressed');
       }
+
+      // Reset animación del auto
+      car.style.transform = 'translate(0, 0) rotate(0)';
     });
   </script>
 </body>
