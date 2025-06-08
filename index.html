@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Control de Auto ESP32</title>
   <style>
     body {
@@ -74,18 +74,17 @@
   <p>Usá las teclas W, A, S y D para mover el auto.</p>
   <div id="status">Conectando...</div>
 
-<!-- Auto visual con SVG -->
-<svg id="car" width="200" height="120">
-  <!-- Ruedas (cerca y simétricas) -->
-  <rect x="40" y="20" width="20" height="20" fill="black" rx="4"/>
-  <rect x="140" y="20" width="20" height="20" fill="black" rx="4"/>
-  <rect x="40" y="80" width="20" height="20" fill="black" rx="4"/>
-  <rect x="140" y="80" width="20" height="20" fill="black" rx="4"/>
+  <!-- Auto visual con SVG -->
+  <svg id="car" width="200" height="120">
+    <!-- Ruedas (cerca y simétricas) -->
+    <rect x="40" y="20" width="20" height="20" fill="black" rx="4"/>
+    <rect x="140" y="20" width="20" height="20" fill="black" rx="4"/>
+    <rect x="40" y="80" width="20" height="20" fill="black" rx="4"/>
+    <rect x="140" y="80" width="20" height="20" fill="black" rx="4"/>
 
-  <!-- Cuerpo del auto rotado 90° -->
-  <rect x="40" y="30" width="120" height="60" fill="red" rx="10" transform="rotate(90 100 60)"/>
-</svg>
-
+    <!-- Cuerpo del auto rotado 90° -->
+    <rect x="40" y="30" width="120" height="60" fill="red" rx="10" transform="rotate(90 100 60)"/>
+  </svg>
 
   <div class="keys">
     <div></div>
@@ -117,44 +116,99 @@
       d: document.getElementById('key-d')
     };
 
+    const pressedKeys = new Set();
     const car = document.getElementById('car');
+
+    function updateMovement() {
+      if (socket.readyState !== WebSocket.OPEN) return;
+
+      // Convertir pressedKeys a un string ordenado para simplificar la detección
+      const keys = Array.from(pressedKeys).sort().join('');
+
+      // Mapear combinaciones a comandos y animaciones
+      // Puedes ajustar los comandos según el firmware ESP32
+      let command = '';
+      let transform = '';
+
+      switch (keys) {
+        case 'w':
+          command = 'w';
+          transform = 'translateY(-10px)';
+          break;
+        case 'a':
+          command = 'a';
+          transform = 'rotate(-10deg)';
+          break;
+        case 's':
+          command = 's';
+          transform = 'translateY(10px)';
+          break;
+        case 'd':
+          command = 'd';
+          transform = 'rotate(10deg)';
+          break;
+
+        // Movimientos diagonales
+        case 'aw':
+          command = 'q'; // por ejemplo, 'q' para adelante-izquierda
+          transform = 'translate(-7px, -7px) rotate(-10deg)';
+          break;
+        case 'dw':
+          command = 'e'; // adelante-derecha
+          transform = 'translate(7px, -7px) rotate(10deg)';
+          break;
+        case 'as':
+          command = 'z'; // atrás-izquierda
+          transform = 'translate(-7px, 7px) rotate(-10deg)';
+          break;
+        case 'ds':
+          command = 'c'; // atrás-derecha
+          transform = 'translate(7px, 7px) rotate(10deg)';
+          break;
+
+        default:
+          command = 'stop';
+          transform = 'translate(0, 0) rotate(0)';
+          break;
+      }
+
+      socket.send(command);
+      car.style.transform = transform;
+
+      // Actualizar las clases de teclas para reflejar sólo las que están presionadas
+      for (let k in keyMap) {
+        if (pressedKeys.has(k)) {
+          keyMap[k].classList.add('pressed');
+        } else {
+          keyMap[k].classList.remove('pressed');
+        }
+      }
+    }
 
     document.addEventListener('keydown', (e) => {
       const key = e.key.toLowerCase();
       if (['w', 'a', 's', 'd'].includes(key)) {
-        if (socket.readyState === WebSocket.OPEN) {
-          socket.send(key);
+        if (!pressedKeys.has(key)) {
+          pressedKeys.add(key);
+          updateMovement();
         }
-        keyMap[key].classList.add('pressed');
-
-        // Animación visual del auto
-        switch (key) {
-          case 'w':
-            car.style.transform = 'translateY(-10px)';
-            break;
-          case 's':
-            car.style.transform = 'translateY(10px)';
-            break;
-          case 'a':
-            car.style.transform = 'rotate(-10deg)';
-            break;
-          case 'd':
-            car.style.transform = 'rotate(10deg)';
-            break;
-        }
+        e.preventDefault(); // evitar scroll con teclas WASD
       }
     });
 
     document.addEventListener('keyup', (e) => {
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send('stop');
+      const key = e.key.toLowerCase();
+      if (pressedKeys.has(key)) {
+        pressedKeys.delete(key);
+        updateMovement();
+        e.preventDefault();
       }
-      for (let k in keyMap) {
-        keyMap[k].classList.remove('pressed');
-      }
+    });
 
-      // Reset animación del auto
-      car.style.transform = 'translate(0, 0) rotate(0)';
+    // Cuando se pierde el foco de la ventana, limpiamos para evitar que quede "atascado"
+    window.addEventListener('blur', () => {
+      pressedKeys.clear();
+      updateMovement();
     });
   </script>
 </body>
