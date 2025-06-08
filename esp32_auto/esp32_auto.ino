@@ -3,35 +3,36 @@
 #include <WebSocketsServer.h>
 
 WiFiMulti wifiMulti;
-WebSocketsServer webSocket = WebSocketsServer(81);  // WebSocket en puerto 81
+WebSocketsServer servidorWebSocket = WebSocketsServer(81);  // Puerto 81 para WebSocket
 
-// Pines de motores (8 pines para 4 motores)
-#define IN1 14  // Motor 1
-#define IN2 12
-#define IN3 27  // Motor 2
-#define IN4 26
-#define IN5 25  // Motor 3 (agregado)
-#define IN6 33
-#define IN7 32  // Motor 4 (agregado)
-#define IN8 13
+// Pines de los motores
+#define I_AD1 27  // Motor delantero izquierdo
+#define I_AD2 26
+#define I_AT1 32  // Motor trasero izquierdo
+#define I_AT2 18
+#define D_AD1 5   // Motor delantero derecho
+#define D_AD2 14
+#define D_AT1 25  // Motor trasero derecho
+#define D_AT2 33
 
-#define LED_INTEGRADO 2
+#define LED_INTEGRADO 2  // LED del ESP32
+
+// Control de tiempo para detener el auto si no recibe comandos
+unsigned long ultimoComando = 0;
+bool enMovimiento = false;
+const unsigned long TIEMPO_LIMITE_MS = 500;  // 500 milisegundos
 
 void setup() {
   Serial.begin(115200);
 
-  // Pines de salida
-  pinMode(IN1, OUTPUT);
-  pinMode(IN2, OUTPUT);
-  pinMode(IN3, OUTPUT);
-  pinMode(IN4, OUTPUT);
-  pinMode(IN5, OUTPUT);
-  pinMode(IN6, OUTPUT);
-  pinMode(IN7, OUTPUT);
-  pinMode(IN8, OUTPUT);
+  // Configuración de pines
+  pinMode(I_AD1, OUTPUT); pinMode(I_AD2, OUTPUT);
+  pinMode(I_AT1, OUTPUT); pinMode(I_AT2, OUTPUT);
+  pinMode(D_AD1, OUTPUT); pinMode(D_AD2, OUTPUT);
+  pinMode(D_AT1, OUTPUT); pinMode(D_AT2, OUTPUT);
   pinMode(LED_INTEGRADO, OUTPUT);
-  
-  stopMotors();
+
+  detenerMotores();
 
   // Conexión WiFi
   wifiMulti.addAP("TP-Link_3FE2", "26826615");
@@ -44,103 +45,128 @@ void setup() {
   Serial.println("\nConectado a WiFi");
   Serial.println(WiFi.localIP());
 
-  webSocket.begin();
-  webSocket.onEvent(onWebSocketEvent);
-
+  servidorWebSocket.begin();
+  servidorWebSocket.onEvent(manejarEventoWebSocket);
   Serial.println("Servidor WebSocket iniciado en el puerto 81");
 }
 
 void loop() {
-  webSocket.loop();
+  servidorWebSocket.loop();
 }
 
-void onWebSocketEvent(uint8_t client, WStype_t type, uint8_t *payload, size_t length) {
-  if (type == WStype_TEXT) {
-    String msg = String((char *)payload);
-    Serial.println("Comando: " + msg);
+void manejarEventoWebSocket(uint8_t cliente, WStype_t tipo, uint8_t *mensaje, size_t longitud) {
+  if (tipo == WStype_TEXT) {
+    String comando = String((char *)mensaje);
+    Serial.println("Comando recibido: " + comando);
 
-    if (msg == "w") adelante();
-    else if (msg == "s") atras();
-    else if (msg == "a") izquierda();
-    else if (msg == "d") derecha();
-    else if (msg == "stop") stopMotors();
+    if (comando != "stop") {
+      ultimoComando = millis();
+      enMovimiento = true;
+    }
+
+    if (comando == "w") avanzar();
+    else if (comando == "s") retroceder();
+    else if (comando == "a") avanzarIzquierda();
+    else if (comando == "d") avanzarDerecha();
+    else if (comando == "q") avanzarDiagonalIzquierda();
+    else if (comando == "e") avanzarDiagonalDerecha();
+    else if (comando == "z") retrocederDiagonalIzquierda();
+    else if (comando == "c") retrocederDiagonalDerecha();
+     else if (comando == "1") giroAntiHorario();
+      else if (comando == "2") giroHorario();
+    else if (comando == "stop") {
+      detenerMotores();
+      enMovimiento = false;
+    }
   }
 }
 
-// Control de motores
+// Funciones de movimiento
 
-// Todos adelante
-void adelante() {
+void avanzar() {
   digitalWrite(LED_INTEGRADO, HIGH);
-  // Motor 1
-  digitalWrite(IN1, HIGH);
-  digitalWrite(IN2, LOW);
-  // Motor 2
-  digitalWrite(IN3, HIGH);
-  digitalWrite(IN4, LOW);
-  // Motor 3
-  digitalWrite(IN5, HIGH);
-  digitalWrite(IN6, LOW);
-  // Motor 4
-  digitalWrite(IN7, HIGH);
-  digitalWrite(IN8, LOW);
+  digitalWrite(I_AD1, LOW); digitalWrite(I_AD2, HIGH);
+  digitalWrite(I_AT1, LOW); digitalWrite(I_AT2, HIGH);
+  digitalWrite(D_AD1, LOW); digitalWrite(D_AD2, HIGH);
+  digitalWrite(D_AT1, LOW); digitalWrite(D_AT2, HIGH);
 }
 
-// Todos atrás
-void atras() {
+void retroceder() {
   digitalWrite(LED_INTEGRADO, HIGH);
-  digitalWrite(IN1, LOW);
-  digitalWrite(IN2, HIGH);
-  digitalWrite(IN3, LOW);
-  digitalWrite(IN4, HIGH);
-  digitalWrite(IN5, LOW);
-  digitalWrite(IN6, HIGH);
-  digitalWrite(IN7, LOW);
-  digitalWrite(IN8, HIGH);
+  digitalWrite(I_AD1, HIGH); digitalWrite(I_AD2, LOW);
+  digitalWrite(I_AT1, HIGH); digitalWrite(I_AT2, LOW);
+  digitalWrite(D_AD1, HIGH); digitalWrite(D_AD2, LOW);
+  digitalWrite(D_AT1, HIGH); digitalWrite(D_AT2, LOW);
 }
 
-// Girar a la izquierda: motores derechos adelante, motores izquierdos atrás
-void izquierda() {
+void avanzarIzquierda () {
   digitalWrite(LED_INTEGRADO, HIGH);
-  // Motor 1 (izquierdo)
-  digitalWrite(IN1, LOW);
-  digitalWrite(IN2, HIGH);
-  // Motor 2 (izquierdo)
-  digitalWrite(IN3, LOW);
-  digitalWrite(IN4, HIGH);
-  // Motor 3 (derecho)
-  digitalWrite(IN5, HIGH);
-  digitalWrite(IN6, LOW);
-  // Motor 4 (derecho)
-  digitalWrite(IN7, HIGH);
-  digitalWrite(IN8, LOW);
+  digitalWrite(I_AD1, HIGH); digitalWrite(I_AD2, LOW);
+  digitalWrite(I_AT1, LOW); digitalWrite(I_AT2, HIGH);
+  digitalWrite(D_AD1, LOW); digitalWrite(D_AD2, HIGH);
+  digitalWrite(D_AT1, HIGH); digitalWrite(D_AT2, LOW);
 }
 
-// Girar a la derecha: motores izquierdos adelante, motores derechos atrás
-void derecha() {
+void avanzarDerecha () {
   digitalWrite(LED_INTEGRADO, HIGH);
-  // Motor 1 (izquierdo)
-  digitalWrite(IN1, HIGH);
-  digitalWrite(IN2, LOW);
-  // Motor 2 (izquierdo)
-  digitalWrite(IN3, HIGH);
-  digitalWrite(IN4, LOW);
-  // Motor 3 (derecho)
-  digitalWrite(IN5, LOW);
-  digitalWrite(IN6, HIGH);
-  // Motor 4 (derecho)
-  digitalWrite(IN7, LOW);
-  digitalWrite(IN8, HIGH);
+  digitalWrite(I_AD1, LOW); digitalWrite(I_AD2, HIGH);
+  digitalWrite(I_AT1, HIGH); digitalWrite(I_AT2, LOW);
+  digitalWrite(D_AD1, HIGH); digitalWrite(D_AD2, LOW);
+  digitalWrite(D_AT1, LOW); digitalWrite(D_AT2, HIGH);
 }
 
-void stopMotors() {
+void giroAntiHorario() {
+  digitalWrite(LED_INTEGRADO, HIGH);
+  digitalWrite(I_AD1, HIGH); digitalWrite(I_AD2, LOW);
+  digitalWrite(I_AT1, HIGH); digitalWrite(I_AT2, LOW);
+  digitalWrite(D_AD1, LOW); digitalWrite(D_AD2, HIGH);
+  digitalWrite(D_AT1, LOW); digitalWrite(D_AT2, HIGH);
+}
+
+void giroHorario() {
+  digitalWrite(LED_INTEGRADO, HIGH);
+  digitalWrite(I_AD1, LOW); digitalWrite(I_AD2, HIGH);
+  digitalWrite(I_AT1, LOW); digitalWrite(I_AT2, HIGH);
+  digitalWrite(D_AD1, HIGH); digitalWrite(D_AD2, LOW);
+  digitalWrite(D_AT1, HIGH); digitalWrite(D_AT2, LOW);
+}
+
+void avanzarDiagonalIzquierda() {
+  digitalWrite(LED_INTEGRADO, HIGH);
+  digitalWrite(I_AD1, LOW); digitalWrite(I_AD2, LOW);    
+  digitalWrite(I_AT1, LOW); digitalWrite(I_AT2, HIGH);   
+  digitalWrite(D_AD1, LOW); digitalWrite(D_AD2, HIGH);   
+  digitalWrite(D_AT1, LOW); digitalWrite(D_AT2, LOW);    
+}
+
+void avanzarDiagonalDerecha() {
+  digitalWrite(LED_INTEGRADO, HIGH);
+  digitalWrite(I_AD1, LOW); digitalWrite(I_AD2, HIGH);   
+  digitalWrite(I_AT1, LOW); digitalWrite(I_AT2, LOW);    
+  digitalWrite(D_AD1, LOW); digitalWrite(D_AD2, LOW);    
+  digitalWrite(D_AT1, LOW); digitalWrite(D_AT2, HIGH);   
+}
+
+void retrocederDiagonalIzquierda() {
+  digitalWrite(LED_INTEGRADO, HIGH);
+  digitalWrite(I_AD1, HIGH); digitalWrite(I_AD2, LOW);    
+  digitalWrite(I_AT1, LOW); digitalWrite(I_AT2, LOW);     
+  digitalWrite(D_AD1, LOW); digitalWrite(D_AD2, LOW);     
+  digitalWrite(D_AT1, HIGH); digitalWrite(D_AT2, LOW);    
+}
+
+void retrocederDiagonalDerecha() {
+  digitalWrite(LED_INTEGRADO, HIGH);
+  digitalWrite(I_AD1, LOW); digitalWrite(I_AD2, LOW);
+  digitalWrite(I_AT1, HIGH); digitalWrite(I_AT2, LOW);
+  digitalWrite(D_AD1, HIGH); digitalWrite(D_AD2, LOW);    
+  digitalWrite(D_AT1, LOW); digitalWrite(D_AT2, LOW);     
+}
+
+void detenerMotores() {
   digitalWrite(LED_INTEGRADO, LOW);
-  digitalWrite(IN1, LOW);
-  digitalWrite(IN2, LOW);
-  digitalWrite(IN3, LOW);
-  digitalWrite(IN4, LOW);
-  digitalWrite(IN5, LOW);
-  digitalWrite(IN6, LOW);
-  digitalWrite(IN7, LOW);
-  digitalWrite(IN8, LOW);
+  digitalWrite(I_AD1, LOW); digitalWrite(I_AD2, LOW);
+  digitalWrite(I_AT1, LOW); digitalWrite(I_AT2, LOW);
+  digitalWrite(D_AD1, LOW); digitalWrite(D_AD2, LOW);
+  digitalWrite(D_AT1, LOW); digitalWrite(D_AT2, LOW);
 }
